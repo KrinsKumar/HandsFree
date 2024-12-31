@@ -1,6 +1,5 @@
 <html>
   <body>
-    <!-- Set up your HTML here -->
     <button id="startButton">Start Recognition</button>
     <script>
       // ----------------STREAMLIT FUNCTIONS------------------------
@@ -50,27 +49,18 @@
         recognition.start();
       });
 
-      // data is any JSON-serializable value you sent from Python,
-      // and it's already deserialized for you.
       function onDataFromPython(event) {
         if (event.data.type !== "streamlit:render") return;
-        // myInput.value = event.data.args.my_input_value;  // Access values sent from Python here!
       }
 
-      // Hook things up!
       window.addEventListener("message", onDataFromPython);
       init();
 
-      // Hack to autoset the iframe height.
       window.addEventListener("load", function() {
         window.setTimeout(function() {
           setFrameHeight(document.documentElement.clientHeight)
         }, 0);
       });
-
-      // Optionally, if the automatic height computation fails you, give this component a height manually
-      // by commenting out below:
-      //setFrameHeight(200);
     </script>
   </body>
 </html>

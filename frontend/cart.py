@@ -5,6 +5,7 @@ from snowflake.cortex import Complete
 from snowflake.snowpark import Session
 from snowflake.snowpark.functions import udf
 from snowflake.snowpark.types import StringType
+from streamlit_mic_recorder import mic_recorder
 
 MODELS = [
     "mistral-large2",
@@ -12,15 +13,6 @@ MODELS = [
     "llama3.1-8b",
 ]
 
-conn = st.connection("snowflake")
-session = conn.session()
-global_session = session
-root = Root(session)
-global_session = None
-
-
-
-@udf(session=global_session, return_type=StringType())
 def init_messages():
     """
     Initialize the session state for chat messages. If the session state indicates that the
@@ -30,20 +22,20 @@ def init_messages():
     if st.session_state.clear_conversation or "messages" not in st.session_state:
         st.session_state.messages = []
 
-@udf(session=global_session, return_type=StringType())
-def init_service_metadata():
+
+def init_service_metadata(thisSession):
     """
     Initialize the session state for cortex search service metadata. Query the available
     cortex search services from the Snowflake session and store their names and search
     columns in the session state.
     """
     if "service_metadata" not in st.session_state:
-        services = session.sql("SHOW CORTEX SEARCH SERVICES;").collect()
+        services = thisSession.sql("SHOW CORTEX SEARCH SERVICES;").collect()
         service_metadata = []
         if services:
             for s in services:
                 svc_name = s["name"]
-                svc_search_col = session.sql(
+                svc_search_col = thisSession.sql(
                     f"DESC CORTEX SEARCH SERVICE {svc_name};"
                 ).collect()[0]["search_column"]
                 service_metadata.append(
@@ -52,7 +44,7 @@ def init_service_metadata():
 
         st.session_state.service_metadata = service_metadata
 
-@udf(session=global_session, return_type=StringType())
+
 def init_config_options():
     """
     Initialize the configuration options in the Streamlit sidebar. Allow the user to select
@@ -89,7 +81,7 @@ def init_config_options():
 
     st.sidebar.expander("Session State").write(st.session_state)
 
-@udf(session=global_session, return_type=StringType())
+
 def query_cortex_search_service(query, columns = [], filter={}):
     """
     Query the selected cortex search service with the given query and retrieve context documents.
@@ -128,7 +120,7 @@ def query_cortex_search_service(query, columns = [], filter={}):
 
     return context_str, results
 
-@udf(session=global_session, return_type=StringType())
+
 def get_chat_history():
     """
     Retrieve the chat history from the session state limited to the number of messages specified
@@ -142,7 +134,7 @@ def get_chat_history():
     )
     return st.session_state.messages[start_index : len(st.session_state.messages) - 1]
 
-@udf(session=global_session, return_type=StringType())
+
 def complete(model, prompt):
     """
     Generate a completion for the given prompt using the specified model.
@@ -154,9 +146,9 @@ def complete(model, prompt):
     Returns:
         str: The generated completion.
     """
-    return Complete(model, prompt).replace("$", "\$")
+    return Complete(model, prompt, ).replace("$", "\$")
 
-@udf(session=global_session, return_type=StringType())
+
 def make_chat_history_summary(chat_history, question):
     """
     Generate a summary of the chat history combined with the current question to extend the query
@@ -193,7 +185,8 @@ def make_chat_history_summary(chat_history, question):
 
     return summary
 
-@udf(session=global_session, return_type=StringType())
+
+# @udf(session=session, return_type=StringType())
 def create_prompt(user_question):
     """
     Create a prompt for the language model by combining the user question with context retrieved
@@ -256,11 +249,11 @@ def create_prompt(user_question):
             """
     return prompt, results
 
-@udf(session=global_session, return_type=StringType())
-def main():
+
+def main(session):
     st.title(f":speech_balloon: Chatbot with Snowflake Cortex")
 
-    init_service_metadata()
+    init_service_metadata(session)
     init_config_options()
     init_messages()
 
@@ -268,13 +261,26 @@ def main():
 
 
     mycomponent = components.declare_component(
-        "voiceRecorder",
-        path="./mycomponent"
+        "voiceRecorder", # human readable name
+        path="./mycomponent" # url that the component will be served at 
     )
-    slider_value = mycomponent()
+    # my components variable is a reference calling it will create a new instance, pass a key to this call if you are calling this multiple times
+    slider_value = mycomponent()  
 
     # Display the slider value in Streamlit
     slider_value
+
+    audio = mic_recorder(
+        start_prompt="Start recording",
+        stop_prompt="Stop recording",
+        just_once=False,
+        use_container_width=False,
+        format="webm",
+        callback=None,
+        args=(),
+        kwargs={},
+        key=None
+    )
 
     
     # Display chat messages from history on app rerun
@@ -312,4 +318,8 @@ def main():
             {"role": "assistant", "content": generated_response}
         )
 
-main()
+
+if __name__ == "__main__":
+    conn = st.connection("snowflake")
+    session = conn.session()
+    main(session)

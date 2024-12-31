@@ -1,1 +1,9 @@
 path/
+__pycache__/
+*.pyc
+.DS_Store
+
+.conda/
+connections.toml
+.streamlit/
+.snowflake/
